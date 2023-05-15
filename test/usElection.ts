@@ -2,6 +2,7 @@ import { USElection__factory } from "./../typechain-types/factories/Election.sol
 import { USElection } from "./../typechain-types/Election.sol/USElection";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import StateResultStruct = USElection.StateResultStruct;
 
 describe("USElection", function () {
   let usElectionFactory;
@@ -54,6 +55,30 @@ describe("USElection", function () {
 
     expect(await usElection.currentLeader()).to.equal(2); // TRUMP
   });
+  
+  it("Should fail on tie", async function () {
+    const results : StateResultStruct = {
+      'name': 'Ohaio',
+      'votesBiden': 800,
+      'votesTrump': 800,
+      'stateSeats': 20,
+    };
+    expect(usElection.submitStateResult(results)).to.be.revertedWith(
+        "There cannot be a tie"
+    );
+  })
+
+  it("Should fail on 0 stateSeats", async function () {
+    const results : StateResultStruct = {
+      'name': 'Ohaio',
+      'votesBiden': 800,
+      'votesTrump': 1200,
+      'stateSeats': 0,
+    };
+    expect(usElection.submitStateResult(results)).to.be.revertedWith(
+        "States must have at least 1 seat"
+    );
+  })
 
   it("Should end the elections, get the leader and election status", async function () {
     const endElectionTx = await usElection.endElection();
@@ -66,4 +91,40 @@ describe("USElection", function () {
   });
 
   //TODO: ADD YOUR TESTS
+  it("Should use ownable on end elections", async function () {
+    const [owner, otherAccount] = await ethers.getSigners();
+    expect(usElection.connect(otherAccount).endElection()).to.be.revertedWith(
+        "Not invoked by the owner");
+  })
+  
+  it("Should vote on active election only", async function () {
+    const results : StateResultStruct = {
+      'name': 'Ohaio',
+      'votesBiden': 800,
+      'votesTrump': 1200,
+      'stateSeats': 33,
+    };
+    expect(usElection.submitStateResult(results)).to.be.revertedWith(
+        "The election has ended already"
+    );
+  });
+  
+  it("Should fail on other account vote submit", async function () {
+    const [owner, otherAccount] = await ethers.getSigners();
+    const results : StateResultStruct = {
+      'name': 'Ohaio',
+      'votesBiden': 800,
+      'votesTrump': 1200,
+      'stateSeats': 33,
+    };
+    expect(usElection.connect(otherAccount).submitStateResult(results)).to.be.revertedWith(
+        "The election has ended already"
+    );
+  })
+
+  it("Should end only active elections", async function () {
+    expect(usElection.endElection()).to.be.revertedWith(
+        "The election has ended already");
+  })
+  
 });
